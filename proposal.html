@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>For You</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f14;
+      --surface: #13161e;
+      --border: #1e2330;
+      --amber: #f4a44a;
+      --amber-dim: #c47a28;
+      --rose: #e8697a;
+      --rose-dim: #a33d4d;
+      --mint: #5ecfa0;
+      --blue: #6eb5ff;
+      --muted: #4a5168;
+      --text: #c8d0e0;
+      --text-dim: #6b7592;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Noise overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    /* Grid bg */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(244,164,74,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(244,164,74,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 48px;
+      opacity: 0;
+      animation: fadeUp 0.6s ease forwards;
+    }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-red   { background: #ff5f57; }
+    .dot-yellow{ background: #ffbd2e; }
+    .dot-green { background: #28c840; }
+    .filename {
+      margin-left: 12px;
+      color: var(--text-dim);
+      font-size: 13px;
+      letter-spacing: 0.04em;
+    }
+    .filename span { color: var(--amber); }
+
+    /* ── HERO ── */
+    .hero {
+      margin-bottom: 56px;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.2s ease forwards;
+    }
+    .hero-label {
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      color: var(--amber);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .hero-label::before { content: '// '; color: var(--muted); }
+
+    .hero h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(36px, 7vw, 64px);
+      font-style: italic;
+      font-weight: 400;
+      line-height: 1.1;
+      color: #fff;
+      margin-bottom: 20px;
+    }
+    .hero h1 em {
+      font-style: normal;
+      color: var(--rose);
+      position: relative;
+    }
+    .hero h1 em::after {
+      content: '';
+      position: absolute;
+      bottom: 4px;
+      left: 0; right: 0;
+      height: 2px;
+      background: var(--rose-dim);
+      border-radius: 2px;
+    }
+
+    .cursor-blink {
+      display: inline-block;
+      width: 3px;
+      height: 0.85em;
+      background: var(--amber);
+      margin-left: 4px;
+      vertical-align: middle;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ── SECTION CARD ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 24px;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: border-color 0.3s;
+    }
+    .card:hover { border-color: #2a3045; }
+
+    .card.visible {
+      animation: fadeUp 0.6s ease forwards;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-icon { font-size: 18px; }
+    .card-title {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .card-line {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* ── CODE BLOCK ── */
+    .code-block {
+      font-size: 14px;
+      line-height: 2;
+      color: var(--text);
+    }
+    .kw  { color: var(--rose); }
+    .fn  { color: var(--blue); }
+    .str { color: var(--mint); }
+    .num { color: var(--amber); }
+    .cm  { color: var(--muted); font-style: italic; }
+    .indent { padding-left: 24px; }
+    .indent2 { padding-left: 48px; }
+
+    /* ── PROSE BLOCK ── */
+    .prose {
+      font-family: 'Playfair Display', serif;
+      font-size: 17px;
+      line-height: 1.85;
+      color: #b8c2d8;
+      font-weight: 400;
+    }
+    .prose strong {
+      color: #fff;
+      font-weight: 700;
+    }
+    .prose em {
+      color: var(--amber);
+      font-style: italic;
+    }
+
+    /* ── TIMELINE ── */
+    .timeline { display: flex; flex-direction: column; gap: 0; }
+    .tl-item {
+      display: grid;
+      grid-template-columns: 120px 1px 1fr;
+      gap: 0 20px;
+      min-height: 60px;
+    }
+    .tl-date {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: right;
+      padding-top: 4px;
+      letter-spacing: 0.04em;
+    }
+    .tl-line {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .tl-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--amber);
+      border: 2px solid var(--bg);
+      flex-shrink: 0;
+      margin-top: 5px;
+    }
+    .tl-dot.rose { background: var(--rose); }
+    .tl-dot.mint { background: var(--mint); }
+    .tl-bar {
+      width: 1px;
+      flex: 1;
+      background: var(--border);
+      margin-top: 4px;
+    }
+    .tl-last .tl-bar { display: none; }
+    .tl-content {
+      padding-bottom: 28px;
+      padding-top: 2px;
+    }
+    .tl-label {
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .tl-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    /* ── COMMIT LOG ── */
+    .commit-log { display: flex; flex-direction: column; gap: 12px; }
+    .commit {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 8px;
+      border: 1px solid transparent;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .commit:hover {
+      border-color: var(--border);
+      background: rgba(255,255,255,0.04);
+    }
+    .commit-hash {
+      font-size: 11px;
+      color: var(--amber);
+      flex-shrink: 0;
+      margin-top: 2px;
+      letter-spacing: 0.06em;
+    }
+    .commit-msg {
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .commit-msg span {
+      color: var(--text-dim);
+      font-size: 11px;
+      display: block;
+      margin-top: 3px;
+    }
+
+    /* ── PROMISE BLOCK ── */
+    .promise-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .promise-item {
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(244,164,74,0.04);
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .promise-item:hover {
+      background: rgba(244,164,74,0.08);
+      border-color: rgba(244,164,74,0.3);
+    }
+    .promise-icon { font-size: 20px; margin-bottom: 8px; }
+    .promise-text { font-size: 13px; color: var(--text); line-height: 1.5; }
+
+    /* ── FINAL BLOCK ── */
+    .final {
+      text-align: center;
+      padding: 48px 24px;
+      opacity: 0;
+      animation: fadeUp 0.8s 0.4s ease forwards;
+    }
+    .final-quote {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(20px, 4vw, 28px);
+      font-style: italic;
+      color: #fff;
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+    .final-attr {
+      font-size: 12px;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+    }
+
+    /* ── SIGNATURE ── */
+    .sig {
+      margin-top: 48px;
+      padding-top: 32px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      opacity: 0;
+      animation: fadeUp 0.6s 0.6s ease forwards;
+    }
+    .sig-name {
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+    .sig-name strong { color: var(--amber); font-size: 15px; display: block; margin-bottom: 4px; }
+    .sig-tag {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* staggered cards */
+    .card:nth-child(1) { animation-delay: 0.3s; }
+    .card:nth-child(2) { animation-delay: 0.45s; }
+    .card:nth-child(3) { animation-delay: 0.6s; }
+    .card:nth-child(4) { animation-delay: 0.75s; }
+    .card:nth-child(5) { animation-delay: 0.9s; }
+
+    .cards-wrapper .card { opacity: 0; animation: fadeUp 0.6s ease forwards; }
+
+    /* Mobile tweaks */
+    @media (max-width: 500px) {
+      .container { padding: 24px 16px 60px; }
+      .card { padding: 20px 16px; }
+      .tl-date { font-size: 10px; }
+      .code-block { font-size: 13px; }
+      .promise-grid { grid-template-columns: 1fr 1fr; }
+      .sig { flex-direction: column; gap: 16px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="dot dot-red"></div>
+    <div class="dot dot-yellow"></div>
+    <div class="dot dot-green"></div>
+    <div class="filename">proposal.<span>html</span> — from <span>SRK</span>, with honesty</div>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-label">initializing something real</div>
+    <h1>
+      I haven't said<br/>
+      <em>I love you</em> yet.<span class="cursor-blink"></span>
+    </h1>
+    <p class="prose" style="font-size:15px; margin-top:16px;">
+      But I am here. And that means everything.
+    </p>
+  </div>
+
+  <!-- CARDS -->
+  <div class="cards-wrapper">
+
+    <!-- Card 1: The honest function -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">💻</span>
+        <span class="card-title">honest.js</span>
+        <span class="card-line">line 1</span>
+      </div>
+      <div class="code-block">
+        <div><span class="kw">function</span> <span class="fn">whatIFeelForYou</span>() {</div>
+        <div class="indent"><span class="cm">// I won't say words I haven't earned yet</span></div>
+        <div class="indent"><span class="cm">// but here is what IS true, right now:</span></div>
+        <div>&nbsp;</div>
+        <div class="indent"><span class="kw">return</span> {</div>
+        <div class="indent2">chosen: <span class="str">"you, specifically — not just anyone"</span>,</div>
+        <div class="indent2">respect: <span class="str">"for your patience when I was confused"</span>,</div>
+        <div class="indent2">honesty: <span class="str">"I told you hard truths instead of easy lies"</span>,</div>
+        <div class="indent2">commitment: <span class="str">"to build this, not just feel it"</span>,</div>
+        <div class="indent2">presence: <span class="str">"I am genuinely, truly here"</span></div>
+        <div class="indent">};</div>
+        <div>}</div>
+      </div>
+    </div>
+
+    <!-- Card 2: Timeline -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">📅</span>
+        <span class="card-title">our_story.log</span>
+        <span class="card-line">git log --all</span>
+      </div>
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="tl-date">Day one</div>
+          <div class="tl-line"><div class="tl-dot"></div><div class="tl-bar"></div></div>
+          <div class="tl-content">
+            <div class="tl-label">You noticed me. I was just being myself.</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-date">Jan 11</div>
+          <div class="tl-line"><div class="tl-dot rose"></div><div class="tl-bar"></div></div>
+          <div class="tl-content">
+            <div class="tl-label">You had the courage to propose.</div>
+            <div class="tl-sub">I wasn't ready. You waited anyway.</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-date">Jan 21</div>
+          <div class="tl-line"><div class="tl-dot"></div><div class="tl-bar"></div></div>
+          <div class="tl-content">
+            <div class="tl-label">I told you the hard truth — "I don't love you, don't wait."</div>
+            <div class="tl-sub">You cried. You still didn't leave.</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-date">Feb 17</div>
+          <div class="tl-line"><div class="tl-dot rose"></div><div class="tl-bar"></div></div>
+          <div class="tl-content">
+            <div class="tl-label">I chose you. Not from pressure. From decision.</div>
+            <div class="tl-sub">I said "I'm okay with you" — and meant every word.</div>
+          </div>
+        </div>
+        <div class="tl-item tl-last">
+          <div class="tl-date">Today</div>
+          <div class="tl-line"><div class="tl-dot mint"></div></div>
+          <div class="tl-content">
+            <div class="tl-label">I am writing this. For you. With nothing to hide.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 3: What I see in you -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">🔍</span>
+        <span class="card-title">what_i_see.json</span>
+        <span class="card-line">READ ONLY</span>
+      </div>
+      <div class="commit-log">
+        <div class="commit">
+          <div class="commit-hash">0x01</div>
+          <div class="commit-msg">Your patience — you waited when any other person would have walked away.
+            <span>That is not weakness. That is rare character.</span>
+          </div>
+        </div>
+        <div class="commit">
+          <div class="commit-hash">0x02</div>
+          <div class="commit-msg">You accept me in my building phase — not the finished version.
+            <span>That is the truest kind of care.</span>
+          </div>
+        </div>
+        <div class="commit">
+          <div class="commit-hash">0x03</div>
+          <div class="commit-msg">You show up for the things that matter — even when I'm difficult.
+            <span>I notice. I always notice.</span>
+          </div>
+        </div>
+        <div class="commit">
+          <div class="commit-hash">0x04</div>
+          <div class="commit-msg">You think about our future seriously — while I'm still figuring out today.
+            <span>That takes a kind of love I haven't fully understood yet.</span>
+          </div>
+        </div>
+        <div class="commit">
+          <div class="commit-hash">0x05</div>
+          <div class="commit-msg">You chose me — even after I gave you every reason not to.
+            <span>I will not take that lightly. Ever.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 4: My promises -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">🤝</span>
+        <span class="card-title">promises.config</span>
+        <span class="card-line">version 1.0</span>
+      </div>
+      <div class="promise-grid">
+        <div class="promise-item">
+          <div class="promise-icon">🪞</div>
+          <div class="promise-text">I will always be honest with you — even when it's hard.</div>
+        </div>
+        <div class="promise-item">
+          <div class="promise-icon">🏗️</div>
+          <div class="promise-text">I will build love with you — not just wait to feel it.</div>
+        </div>
+        <div class="promise-item">
+          <div class="promise-icon">🛡️</div>
+          <div class="promise-text">I will protect what we have — quietly, consistently.</div>
+        </div>
+        <div class="promise-item">
+          <div class="promise-icon">📈</div>
+          <div class="promise-text">I will grow into someone you are proud to be with.</div>
+        </div>
+        <div class="promise-item">
+          <div class="promise-icon">🎯</div>
+          <div class="promise-text">I will never lie to keep you — only stay if it's real.</div>
+        </div>
+        <div class="promise-item">
+          <div class="promise-icon">🕯️</div>
+          <div class="promise-text">I will be present — not perfect, but genuinely present.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 5: The truth -->
+    <div class="card" style="border-color: rgba(232,105,122,0.25); background: rgba(232,105,122,0.04);">
+      <div class="card-header">
+        <span class="card-icon">❤️</span>
+        <span class="card-title">the_real_reason.txt</span>
+        <span class="card-line">plaintext</span>
+      </div>
+      <p class="prose">
+        I haven't said <em>"I love you"</em> yet. Not because I don't feel anything — but because <strong>I refuse to say it before I mean it completely.</strong>
+        <br/><br/>
+        What I know is this: <strong>I chose you.</strong> Out of everyone, in a moment of full clarity, I chose you specifically — your character, your patience, your way of caring. That was not a small decision for a person like me.
+        <br/><br/>
+        I am <em>building</em> something. My life, my career, my future — and slowly, honestly — <em>us.</em> I don't know every answer yet. But I know I want you beside me while I figure it out.
+        <br/><br/>
+        <strong>That is more honest than "I love you" from someone who doesn't mean it.</strong>
+        <br/><br/>
+        And when I finally say those three words — and I will — you'll know with complete certainty that I earned them. That they are real. That they are <em>yours.</em>
+      </p>
+    </div>
+
+  </div><!-- /cards-wrapper -->
+
+  <!-- FINAL QUOTE -->
+  <div class="final">
+    <p class="final-quote">"Some things are built, not found.<br/>I am choosing to build this — with you."</p>
+    <p class="final-attr">— SRK, Feb 2026</p>
+  </div>
+
+  <!-- SIGNATURE -->
+  <div class="sig">
+    <div class="sig-name">
+      <strong>Sivaramakrishnan</strong>
+      still learning, always honest
+    </div>
+    <div class="sig-tag">written in code · meant from the heart</div>
+  </div>
+
+</div>
+
+<script>
+  // Intersection observer for card reveal
+  const cards = document.querySelectorAll('.cards-wrapper .card');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.style.animation = 'fadeUp 0.6s ease forwards';
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  cards.forEach(card => observer.observe(card));
+</script>
+</body>
+</html>
